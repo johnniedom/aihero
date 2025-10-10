@@ -1,0 +1,130 @@
+- Prefer dash case for file names:
+
+AuthButton.tsx -> auth-button.tsx
+DeleteChatButton.tsx -> delete-chat-button.tsx
+
+- Prefer TypeScript over JavaScript
+
+- Where possible, adjust type imports so they use 'type' on the entire import, not just the specific named imports:
+
+import { type Message } from "ai"; -> import type { Message } from "ai";
+
+- Use lucide-react for icons
+
+- Use size-\_ instead of h-\* and w-\*
+
+h-4 w-4 -> size-4
+h-5 w-5 -> size-5
+h-6 w-6 -> size-6
+h-7 w-7 -> size-7
+h-8 w-8 -> size-8
+
+- Use sonner for toasts
+
+- Prefer non-optional properties where possible
+
+abc?: string; -> abc: string;
+
+- Use pnpm for package manager
+- for AI SDK problems always checkout https://github.com/vercel/ai/blob/main/content/docs/08-migration-guides/26-migration-guide-5-0.mdx
+
+
+Ran Get Library Docs 
+Completed with input: {
+  "context7CompatibleLibraryID": "/vercel/ai",
+  "tokens": 2000,
+  "topic": "major changes and migration guide from AI SDK v4 to v5"
+}
+
+## Major Changes in AI SDK v5 (vs v4)
+
+Based on the migration guide, here are the **biggest breaking changes** you encountered:
+
+### 1. **Streaming API Completely Redesigned** ⚡
+**What changed:** The entire streaming system was rewritten
+- ❌ `createDataStreamResponse()` → ✅ `result.toUIMessageStreamResponse()`
+- ❌ `pipeDataStreamToResponse()` → ✅ `pipeUIMessageStreamToResponse()`
+- ❌ `toDataStreamResponse()` → ✅ `toUIMessageStreamResponse()`
+
+**Why:** Better support for UI components and structured data streaming
+
+### 2. **Message Types Require Conversion** 🔄
+**What changed:** You now need `convertToModelMessages()` for API calls
+```typescript
+// v4
+const result = streamText({ model, messages });
+
+// v5  
+const result = streamText({ 
+  model, 
+  messages: convertToModelMessages(messages) 
+});
+```
+
+**Why:** Clear separation between UI messages (`UIMessage[]`) and API messages (`ModelMessage[]`)
+
+### 3. **Provider Options Moved** 📦
+**What changed:** Model-specific options moved to `providerOptions`
+```typescript
+// v4
+embed({ model: openai('text-embedding-3-small', { dimensions: 10 }) })
+
+// v5
+embed({ 
+  model: openai('text-embedding-3-small'),
+  providerOptions: { openai: { dimensions: 10 } }
+})
+```
+
+### 4. **Import Paths Changed** 📁
+**What changed:** Some types moved to `@ai-sdk/provider`
+```typescript
+// v4
+import { LanguageModelV3 } from 'ai';
+
+// v5
+import { LanguageModelV3 } from '@ai-sdk/provider';
+```
+
+### 5. **Hooks Removed** ❌
+**What changed:** `useAssistant` hook completely removed
+- Must migrate to `useChat` with appropriate configuration
+
+### 6. **UI Utilities Consolidated** 🔧
+**What changed:** Functions moved from `@ai-sdk/ui-utils` to main `ai` package
+```typescript
+// v4
+import { getTextFromDataUrl } from '@ai-sdk/ui-utils';
+
+// v5
+import { getTextFromDataUrl } from 'ai';
+```
+
+### 7. **Message Structure Changed** 💬
+**What changed:** Attachments now use `parts` array instead of `experimental_attachments`
+```typescript
+// v4
+message.experimental_attachments?.map(attachment => ...)
+
+// v5
+message.parts.map(part => {
+  if (part.type === 'file') return <img src={part.url} />
+})
+```
+
+### 8. **Automated Migration Available** 🤖
+**Run this to auto-fix many issues:**
+```bash
+npx @ai-sdk/codemod v5
+```
+
+### Why These Changes Matter for Your Project:
+
+1. **Better Type Safety** - Stricter separation of UI vs API types
+2. **Improved Streaming** - More flexible UI message streams
+3. **Cleaner Architecture** - Better separation of concerns
+4. **Future-Proof** - Foundation for advanced features
+
+The changes you experienced (the `createDataStreamResponse` error) are part of this major API overhaul. The new API is more powerful but requires these conversions.
+
+**Pro tip:** Always check the [migration guide](https://github.com/vercel/ai/blob/main/content/docs/08-migration-guides/26-migration-guide-5-0.mdx) when upgrading major versions! 🚀
