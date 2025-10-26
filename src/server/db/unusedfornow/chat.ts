@@ -7,8 +7,9 @@ import { asc, desc, eq } from "drizzle-orm";
 // codebase can stay focused on product logic. Treat this file as the single source of truth
 // for how chats and messages map into Postgres.
 
-import { db } from "./index";
-import { chats, messages } from "./schema";
+import { db } from "../index";
+import { chats, messages } from "../schema";
+
 
 // Prefer generating message IDs here so callers do not need to remember to do it.
 const messageId = () => randomUUID();
@@ -65,7 +66,7 @@ const formatChatWithMessages = (
 });
 
 // Upsert semantics:
-// - Creating a new chat writes both the chat and message rows.
+// - Creating a new chat writes both the chat and message rows.=
 // - Updating an existing chat replaces the entire message set in a single transaction.
 // - Writes are scoped by userId so we cannot accidentally overwrite another user's data.
 export const upsertChat = async (opts: {
