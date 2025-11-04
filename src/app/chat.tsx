@@ -24,7 +24,6 @@ export const ChatPage = ({ userName, isAuthenticated }: ChatProps) => {
     }
   }, [isAuthenticated]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
@@ -71,7 +70,6 @@ export const ChatPage = ({ userName, isAuthenticated }: ChatProps) => {
           role="log"
           aria-label="Chat messages"
         >
-          {/* eslint-disable-next-line @typescript-eslint/no-unsafe-call */}
           {messages?.map((message: UIMessage, index: number) => {
             return (
               <ChatMessage

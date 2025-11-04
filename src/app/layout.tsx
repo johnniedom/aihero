@@ -4,7 +4,7 @@ import { GeistSans } from "geist/font/sans";
 import { type Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Johnnie DeepSearch",
+  title: "Johnnie's DeepSearch",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 

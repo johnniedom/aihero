@@ -1,7 +1,7 @@
 "use client";
 
 import { signIn, signOut } from "next-auth/react";
-import { siDiscord } from "simple-icons/icons";
+import { siGoogle } from "simple-icons/icons";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import * as React from "react";
@@ -33,7 +33,7 @@ export function AuthButton({ isAuthenticated, userImage }: AuthButtonProps) {
   const handleSignIn = async () => {
     setLoading("signIn");
     try {
-      await signIn("discord");
+      await signIn("google");
     } catch (e) {
       console.error(e);
     } finally {
@@ -43,15 +43,15 @@ export function AuthButton({ isAuthenticated, userImage }: AuthButtonProps) {
 
   return isAuthenticated ? (
     <div className="hover:bg-gray-750 flex items-center gap-2 rounded-lg bg-gray-800 p-2 text-gray-300">
-      {userImage && (
-        <Image
-          src={userImage}
-          alt="User avatar"
-          width={32}
-          height={32}
-          className="rounded-full"
-        />
-      )}
+      {/* {userImage && (
+        // <Image
+        //   src={userImage}
+        //   alt="User avatar"
+        //   width={32}
+        //   height={32}
+        //   className="rounded-full"
+        // />
+      )} */}
       <button
         onClick={handleSignOut}
         className="flex w-full items-center justify-center p-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -62,7 +62,7 @@ export function AuthButton({ isAuthenticated, userImage }: AuthButtonProps) {
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         ) : null}
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d={siDiscord.path} />
+          <path d={siGoogle.path} />
         </svg>
         Sign out
       </button>
@@ -78,7 +78,7 @@ export function AuthButton({ isAuthenticated, userImage }: AuthButtonProps) {
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : null}{" "}
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-        <path d={siDiscord.path} />
+        <path d={siGoogle.path} />
       </svg>{" "}
       Sign in
     </button>

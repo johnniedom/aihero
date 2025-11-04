@@ -19,7 +19,7 @@ import * as z from "zod";
 export const maxDuration = 60;
 
 // Daily request limit for non-admin users to prevent abuse
-const DAILY_REQUEST_LIMIT = 10;
+const DAILY_REQUEST_LIMIT = 15;
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       model: model,
       messages: convertToModelMessages(messages),
       system: systemMessage.content,
-      stopWhen: stepCountIs(10), // allow up 5 steps.
+      stopWhen: stepCountIs(10), // allow up 10 steps.
       
       tools: {
         searchTheWeb: tool({

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { UIMessage } from "ai";
 import { and, asc, desc, eq } from "drizzle-orm";
 
-import { db } from ".";
+import { db } from "./index";
 import { chats, messages } from "./schema";
 
 // Type aliases keep the rest of the file approachable for juniors.
