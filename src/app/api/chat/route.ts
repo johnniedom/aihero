@@ -4,12 +4,14 @@ import {
   type UIMessage,
   stepCountIs,
   tool,
+  generateId,
 } from "ai";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
-import { model } from "../../../server/ai/modals";
-import { auth } from "../../../server/auth";
-import { db } from "../../../server/db";
-import { requestLogs } from "../../../server/db/schema";
+import { model } from "~/server/ai/modals";
+import { auth } from "~/server/auth";
+import { db } from "~/server/db";
+import { requestLogs } from "~/server/db/schema";
+import { upsertChat } from "~/server/db/queries";
 
 // Import for web search
 import { searchSerper } from "~/serper";
@@ -20,6 +22,77 @@ export const maxDuration = 60;
 
 // Daily request limit for non-admin users to prevent abuse
 const DAILY_REQUEST_LIMIT = 15;
+
+type LegacyContent = string | Array<string | { text?: string }>;
+
+const extractText = (part: UIMessage["parts"][number]): string => {
+  if (typeof part === "string") {
+    return part;
+  }
+
+  if (typeof part === "object" && part !== null && "text" in part) {
+    const textValue = (part as { text?: unknown }).text;
+    if (typeof textValue === "string") {
+      return textValue;
+    }
+  }
+
+  return "";
+};
+
+// Helper: get a plain text string from a UIMessage (handles both parts and legacy content)
+const getMessageText = (message: UIMessage | undefined): string => {
+  if (!message) return "";
+
+  const partsText = (message.parts ?? [])
+    .map((part) => extractText(part))
+    .filter((value) => value.length > 0)
+    .join(" ");
+
+  if (partsText.length > 0) {
+    return partsText;
+  }
+
+  const legacyContent = (message as { content?: LegacyContent }).content;
+
+  if (typeof legacyContent === "string") {
+    return legacyContent;
+  }
+
+  if (Array.isArray(legacyContent)) {
+    return legacyContent
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+
+        const textValue = item?.text;
+        return typeof textValue === "string" ? textValue : "";
+      })
+      .filter((value) => value.length > 0)
+      .join(" ");
+  }
+
+  return "";
+};
+
+const deriveChatTitle = (chatMessages: UIMessage[]): string => {
+  if (chatMessages.length === 0) {
+    return "New Chat";
+  }
+
+  const lastUserMessage =
+    [...chatMessages].reverse().find((message) => message.role === "user") ??
+    chatMessages[chatMessages.length - 1];
+
+  const text = getMessageText(lastUserMessage);
+
+  if (!text) {
+    return "New Chat";
+  }
+
+  return text.length > 40 ? `${text.slice(0, 40)}...` : text;
+};
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -80,16 +153,52 @@ export async function POST(request: Request) {
     // Log the request after passing rate limit check
     await db.insert(requestLogs).values({ userId });
 
-    const { messages } = (await request.json()) as {
+    const body = (await request.json()) as {
       messages: Array<UIMessage>;
+      chatId?: string;
     };
+
+    const { messages: incomingMessages, chatId } = body;
+
+    if (!incomingMessages || incomingMessages.length === 0) {
+      return new Response("Bad Request: No messages provided", { status: 400 });
+    }
+
+    let currentChatId: string;
+    let chatTitle: string | undefined;
+
+    if (typeof chatId !== "string" || chatId.length === 0) {
+      currentChatId = crypto.randomUUID();
+      chatTitle = deriveChatTitle(incomingMessages);
+      try {
+        await upsertChat({
+          userId,
+          chatId: currentChatId,
+          title: chatTitle,
+          messages: incomingMessages,
+        });
+      } catch (err) {
+        console.error("Error creating new chat:", err);
+      }
+    } else {
+      currentChatId = chatId;
+      // verify if chat belongs to the user
+      const chat = await db.query.chats.findFirst({
+        where: (chat, { eq }) => eq(chat.id, currentChatId),
+      });
+      if (chat?.userId !== userId) {
+        return new Response("Unauthorized: Chat does not belong to user", {
+          status: 401,
+        });
+      }
+      chatTitle = chat.title;
+    }
 
     const result = streamText({
       model: model,
-      messages: convertToModelMessages(messages),
+      messages: convertToModelMessages(incomingMessages),
       system: systemMessage.content,
-      stopWhen: stepCountIs(10), // allow up 10 steps.
-      
+      stopWhen: stepCountIs(10), // allow up 10 steps
       tools: {
         searchTheWeb: tool({
           description:
@@ -135,7 +244,24 @@ export async function POST(request: Request) {
       },
     });
 
-    return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse({
+      originalMessages: incomingMessages, // IMPORTANT: Required to prevent duplicate messages
+      generateMessageId: () => generateId(), // IMPORTANT: Required for proper message ID generation
+      onFinish: async ({ messages: completedMessages }) => {
+        const title = chatTitle ?? deriveChatTitle(completedMessages);
+
+        try {
+          await upsertChat({
+            userId,
+            chatId: currentChatId,
+            title,
+            messages: completedMessages,
+          });
+        } catch (err) {
+          console.error("Error saving chat:", err);
+        }
+      },
+    });
   } catch (error) {
     console.error("Error in /api/chat route:", error);
     return new Response("Oops! Something went wrong.", { status: 500 });

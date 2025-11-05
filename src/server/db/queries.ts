@@ -27,11 +27,14 @@ type MessagePart = Message extends { parts: Array<infer Part> } ? Part : never;
  */
 const normalizeParts = (message: Message): MessagePart[] => {
   const candidate = (message as { parts?: unknown }).parts;
+  console.log("normalizeParts candidate:", candidate, message);
+
   if (Array.isArray(candidate)) {
     return candidate as MessagePart[];
   }
 
   const content = (message as { content?: unknown }).content;
+  
   if (typeof content === "string") {
     return [{ type: "text", text: content } as MessagePart];
   }
@@ -53,57 +56,52 @@ export const upsertChat = async (opts: {
 }): Promise<{ id: string }> =>
   db.transaction(async (tx) => {
     const { userId, chatId, title, messages: newMessages } = opts;
-
-    const existingChat = await tx.query.chats.findFirst({
-      where: eq(chats.id, chatId),
+    const existing = await tx.query.chats.findFirst({
+      where: (chat, { eq }) => eq(chat.id, chatId),
+      columns: {
+        id: true,
+        userId: true,
+      },
     });
 
-    if (existingChat) {
-      if (existingChat.userId !== userId) {
-        throw new Error("Chat ID already exists under a different user");
-      }
+    if (existing && existing.userId !== userId) {
+      throw new Error("Chat does not belong to user");
+    }
 
-      // Update chat metadata first. We set `updatedAt` explicitly so the chat's
-      // last-modified timestamp reflects the work we're about to do. Because this
-      // code runs inside a transaction (`tx`), the update will be rolled back
-      // if any subsequent operation (like deleting or reinserting messages)
-      // fails — so the database won't be left in a partially-updated state.
+    const timestamp = now();
+
+    if (existing) {
       await tx
         .update(chats)
-        .set({ title, updatedAt: now() })
+        .set({ title: title, updatedAt: timestamp })
         .where(eq(chats.id, chatId));
 
-      // Delete the existing message rows for this chat. We do a hard-delete
-      // here because the application's desired semantics are to *replace*
-      // the entire message set when upserting
       await tx.delete(messages).where(eq(messages.chatId, chatId));
     } else {
-      const timestamp = now();
       await tx.insert(chats).values({
         id: chatId,
-        userId,
-        title,
+        userId: userId,
+        title: title,
         createdAt: timestamp,
         updatedAt: timestamp,
       });
     }
 
     if (newMessages.length > 0) {
-      const timestamp = now();
-      await tx.insert(messages).values(
-        newMessages.map((message, index) => ({
-          id: (message as { id?: string }).id ?? randomUUID(),
-          chatId,
-          role: message.role,
-          parts: normalizeParts(message),
-          order: index,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        })),
-      );
+      const payload = newMessages.map((message, index) => ({
+        id: (message as { id?: string }).id ?? randomUUID(),
+        chatId: chatId,
+        role: message.role,
+        parts: normalizeParts(message),
+        order: index,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      }));
+
+      await tx.insert(messages).values(payload);
     }
 
-    return { id: chatId };
+    return { id: opts.chatId };
   });
 
 export const getChat = async (opts: {

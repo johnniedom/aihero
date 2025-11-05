@@ -59,12 +59,6 @@ export const requestLogs = createTable(
   }),
 );
 
-export const usersRelations = relations(users, ({ many }) => ({
-  accounts: many(accounts),
-  // Added relation to track user requests for rate limiting
-  requests: many(requestLogs),
-}));
-
 export const accounts = createTable(
   "account",
   {
@@ -94,15 +88,6 @@ export const accounts = createTable(
   }),
 );
 
-export const accountsRelations = relations(accounts, ({ one }) => ({
-  user: one(users, { fields: [accounts.userId], references: [users.id] }),
-}));
-
-// Relations for request logs to link back to users
-export const requestLogsRelations = relations(requestLogs, ({ one }) => ({
-  user: one(users, { fields: [requestLogs.userId], references: [users.id] }),
-}));
-
 export const sessions = createTable(
   "session",
   {
@@ -121,10 +106,6 @@ export const sessions = createTable(
     userIdIdx: index("session_user_id_idx").on(session.userId),
   }),
 );
-
-export const sessionsRelations = relations(sessions, ({ one }) => ({
-  user: one(users, { fields: [sessions.userId], references: [users.id] }),
-}));
 
 export const verificationTokens = createTable(
   "verification_token",
@@ -165,11 +146,6 @@ export const chats = createTable("chat", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const chatRelations = relations(chats, ({ one, many }) => ({
-  users: one(users, { fields: [chats.userId], references: [users.id] }),
-  messages: many(messages),
-}));
-
 export const messages = createTable("message", {
   id: varchar("id", { length: 225 })
     .notNull()
@@ -194,6 +170,30 @@ export const messages = createTable("message", {
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const usersRelations = relations(users, ({ many }) => ({
+  accounts: many(accounts),
+  // Added relation to track user requests for rate limiting
+  requests: many(requestLogs),
+}));
+
+export const accountsRelations = relations(accounts, ({ one }) => ({
+  user: one(users, { fields: [accounts.userId], references: [users.id] }),
+}));
+
+// Relations for request logs to link back to users
+export const requestLogsRelations = relations(requestLogs, ({ one }) => ({
+  user: one(users, { fields: [requestLogs.userId], references: [users.id] }),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, { fields: [sessions.userId], references: [users.id] }),
+}));
+
+export const chatRelations = relations(chats, ({ one, many }) => ({
+  users: one(users, { fields: [chats.userId], references: [users.id] }),
+  messages: many(messages),
+}));
 
 export const messagesRelations = relations(messages, ({ one }) => ({
   chat: one(chats, { fields: [messages.chatId], references: [chats.id] }),

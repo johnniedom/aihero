@@ -29,6 +29,9 @@ importers:
       ai:
         specifier: ^5.0.59
         version: 5.0.80(zod@4.1.12)
+      aihero:
+        specifier: 'link:'
+        version: 'link:'
       dotevn:
         specifier: 0.0.1-security
         version: 0.0.1-security

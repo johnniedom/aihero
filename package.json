@@ -27,6 +27,7 @@
     "@neondatabase/serverless": "^1.0.2",
     "@t3-oss/env-nextjs": "^0.13.8",
     "ai": "^5.0.59",
+    "aihero": "link:",
     "dotevn": "0.0.1-security",
     "drizzle-orm": "^0.33.0",
     "geist": "^1.3.0",
