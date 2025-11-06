@@ -78,7 +78,6 @@ const fetchFromSerper = cacheWithRedis(
       });
 
       if (!response.ok || response.status !== 200) {
-        console.log(response);
         throw new Error(await response.text());
       }
 

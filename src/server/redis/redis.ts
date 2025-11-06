@@ -54,14 +54,14 @@ export const cacheWithRedis = <TArgs extends readonly unknown[], TReturn>(
     try {
       const cachedResult = await redis.get(key);
       if (cachedResult) {
-        console.log(`Cache hit for ${key}`);
+        // console.log(`Cache hit for ${key}`);
         // parse as unknown then cast to TReturn after runtime JSON.parse
         const parsed = JSON.parse(cachedResult) as unknown;
         return parsed as TReturn;
       }
     } catch (error) {
       // Log cache read error but continue with function execution
-      console.error(`Cache read error for ${key}:`, error instanceof Error ? error.message : error);
+      // console.error(`Cache read error for ${key}:`, error instanceof Error ? error.message : error);
     }
 
     const result = await fn(...args);

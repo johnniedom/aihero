@@ -27,7 +27,7 @@ type MessagePart = Message extends { parts: Array<infer Part> } ? Part : never;
  */
 const normalizeParts = (message: Message): MessagePart[] => {
   const candidate = (message as { parts?: unknown }).parts;
-  console.log("normalizeParts candidate:", candidate, message);
+  // console.log("normalizeParts candidate:", candidate, message);
 
   if (Array.isArray(candidate)) {
     return candidate as MessagePart[];
@@ -56,6 +56,7 @@ export const upsertChat = async (opts: {
 }): Promise<{ id: string }> =>
   db.transaction(async (tx) => {
     const { userId, chatId, title, messages: newMessages } = opts;
+
     const existing = await tx.query.chats.findFirst({
       where: (chat, { eq }) => eq(chat.id, chatId),
       columns: {

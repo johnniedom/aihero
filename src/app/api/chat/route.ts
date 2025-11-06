@@ -5,6 +5,8 @@ import {
   stepCountIs,
   tool,
   generateId,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
 } from "ai";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { model } from "~/server/ai/modals";
@@ -12,6 +14,10 @@ import { auth } from "~/server/auth";
 import { db } from "~/server/db";
 import { requestLogs } from "~/server/db/schema";
 import { upsertChat } from "~/server/db/queries";
+import {
+  NEW_CHAT_CREATED_DATA_PART_TYPE,
+  NEW_CHAT_CREATED_EVENT,
+} from "~/lib/chat-data";
 
 // Import for web search
 import { searchSerper } from "~/serper";
@@ -25,18 +31,21 @@ const DAILY_REQUEST_LIMIT = 15;
 
 type LegacyContent = string | Array<string | { text?: string }>;
 
-const extractText = (part: UIMessage["parts"][number]): string => {
+type parts = UIMessage["parts"][number];
+
+type PartWithText = { text?: unknown };
+
+const extractText = (part: parts): string => {
   if (typeof part === "string") {
     return part;
   }
 
   if (typeof part === "object" && part !== null && "text" in part) {
-    const textValue = (part as { text?: unknown }).text;
+    const textValue = (part as PartWithText).text; //telling typescript trust me that the part has text property
     if (typeof textValue === "string") {
       return textValue;
     }
   }
-
   return "";
 };
 
@@ -77,10 +86,6 @@ const getMessageText = (message: UIMessage | undefined): string => {
 };
 
 const deriveChatTitle = (chatMessages: UIMessage[]): string => {
-  if (chatMessages.length === 0) {
-    return "New Chat";
-  }
-
   const lastUserMessage =
     [...chatMessages].reverse().find((message) => message.role === "user") ??
     chatMessages[chatMessages.length - 1];
@@ -95,11 +100,14 @@ const deriveChatTitle = (chatMessages: UIMessage[]): string => {
 };
 
 export async function POST(request: Request) {
+  // Handle incoming chat messages, create new chats if needed, and stream AI responses
   const session = await auth();
 
   if (!session?.user) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  // console.log("User session: 😁", session);
 
   // Extract admin status and user ID for rate limiting logic
   const isAdmin = session.user.isAdmin ?? false;
@@ -159,6 +167,8 @@ export async function POST(request: Request) {
     };
 
     const { messages: incomingMessages, chatId } = body;
+    // Check if this is a new chat (no chatId provided by client)
+    const isNewChat = typeof chatId !== "string" || chatId.length === 0;
 
     if (!incomingMessages || incomingMessages.length === 0) {
       return new Response("Bad Request: No messages provided", { status: 400 });
@@ -167,7 +177,8 @@ export async function POST(request: Request) {
     let currentChatId: string;
     let chatTitle: string | undefined;
 
-    if (typeof chatId !== "string" || chatId.length === 0) {
+    // Generate new chat ID and title if this is a new conversation
+    if (isNewChat) {
       currentChatId = crypto.randomUUID();
       chatTitle = deriveChatTitle(incomingMessages);
       try {
@@ -195,6 +206,7 @@ export async function POST(request: Request) {
     }
 
     const result = streamText({
+      // Stream LLM response with tool access for web search
       model: model,
       messages: convertToModelMessages(incomingMessages),
       system: systemMessage.content,
@@ -244,23 +256,47 @@ export async function POST(request: Request) {
       },
     });
 
-    return result.toUIMessageStreamResponse({
-      originalMessages: incomingMessages, // IMPORTANT: Required to prevent duplicate messages
-      generateMessageId: () => generateId(), // IMPORTANT: Required for proper message ID generation
-      onFinish: async ({ messages: completedMessages }) => {
-        const title = chatTitle ?? deriveChatTitle(completedMessages);
-
-        try {
-          await upsertChat({
-            userId,
-            chatId: currentChatId,
-            title,
-            messages: completedMessages,
+    const stream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        // Emit NEW_CHAT_CREATED data part for new conversations so client can navigate
+        if (isNewChat) {
+          writer.write({
+            type: NEW_CHAT_CREATED_DATA_PART_TYPE,
+            data: {
+              type: NEW_CHAT_CREATED_EVENT,
+              chatId: currentChatId,
+            },
+            transient: true,
           });
-        } catch (err) {
-          console.error("Error saving chat:", err);
         }
+
+        // Merge LLM response stream (text, tools, etc.)
+        writer.merge(
+          result.toUIMessageStream({
+            originalMessages: incomingMessages,
+            generateMessageId: () => generateId(),
+            // Persist conversation after streaming completes
+            onFinish: async ({ messages: completedMessages }) => {
+              const title = chatTitle ?? deriveChatTitle(completedMessages);
+
+              await upsertChat({
+                userId,
+                chatId: currentChatId,
+                title,
+                messages: completedMessages,
+              });
+            },
+          }),
+        );
       },
+      onError: (error) => {
+        console.error("Error in UI message stream:", error);
+        return "An error occurred while streaming the response.";
+      },
+    });
+
+    return createUIMessageStreamResponse({
+      stream,
     });
   } catch (error) {
     console.error("Error in /api/chat route:", error);

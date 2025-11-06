@@ -2,21 +2,27 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import React, { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { ChatMessage } from "~/components/chat-message";
 import { SignInModal } from "~/components/sign-in-modal";
-import { Loader2 } from "lucide-react";
+import { isNewChatCreatedStreamPart } from "~/lib/chat-data";
 
 interface ChatProps {
   userName: string;
   isAuthenticated: boolean;
+  chatId: string | undefined;
 }
 
-export const ChatPage = ({ userName, isAuthenticated }: ChatProps) => {
+export const ChatPage = ({ userName, isAuthenticated, chatId }: ChatProps) => {
   const [input, setInput] = useState("");
   const [showSignInModal, setShowSignInModal] = useState<boolean>(false);
+  const router = useRouter();
 
-  React.useEffect(() => {
+  // Sync auth state with modal visibility
+  useEffect(() => {
     if (!isAuthenticated) {
       setShowSignInModal(true);
     } else {
@@ -24,40 +30,65 @@ export const ChatPage = ({ userName, isAuthenticated }: ChatProps) => {
     }
   }, [isAuthenticated]);
 
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        // Include chatId in request body if available
+        body: () => (chatId ? { chatId } : {}),
+      }),
+    [chatId],
+  );
+
+  // Track pending chat ID to avoid duplicate navigations
+  const pendingChatIdRef = useRef<string | null>(chatId ?? null);
+
   const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-    }),
+    transport,
+    // Listen for NEW_CHAT_CREATED data part emitted by server for new conversations
+    onData: (dataPart) => {
+      if (!isNewChatCreatedStreamPart(dataPart)) {
+        return;
+      }
+
+      const nextChatId = dataPart.data.chatId;
+
+      if (pendingChatIdRef.current === nextChatId) {
+        return;
+      }
+
+      pendingChatIdRef.current = nextChatId;
+
+      // Navigate to the new chat ID when server creates it
+      if (!chatId || chatId !== nextChatId) {
+        router.replace(`?id=${nextChatId}`);
+      }
+    },
   });
 
-  console.log('=== CHAT DEBUG ===');
-  console.log('Messages array:', messages);
-  console.log('Messages length:', messages?.length);
-  if (messages?.length > 0) {
-    console.log('Latest message:', messages[messages.length - 1]);
-  }
-  console.log('===================');
-  
+  useEffect(() => {
+    pendingChatIdRef.current = chatId ?? null;
+  }, [chatId]);
+
   const isLoading = status === "submitted" || status === "streaming";
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    // Submit message to API and clear input field
     event.preventDefault();
     const text = input.trim();
-    if (text) {
-      try {
-        if (sendMessage === undefined) {
-          console.error("sendMessage is undefined");
-          return;
-        }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-        await sendMessage({ text });
-        setInput("");
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error("Failed to send message", error.message, error);
-        } else {
-          console.error("Failed to send message", String(error));
-        }
+
+    if (!text) {
+      return;
+    }
+
+    try {
+      await sendMessage({ text });
+      setInput("");
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Failed to send message", error.message, error);
+      } else {
+        console.error("Failed to send message", String(error));
       }
     }
   };

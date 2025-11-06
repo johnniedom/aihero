@@ -63,7 +63,7 @@ const Markdown = ({ children }: { children: string }) => {
 // Now supports rendering different message parts including tool invocations
 export const ChatMessage = ({ parts, role, userName }: ChatMessageProps) => {
   // Debug logging to see what parts we're getting
-  console.log("ChatMessage received:", { parts, role, userName });
+  // console.log("ChatMessage received:", { parts, role, userName });
 
   // Determine if this is an AI message (assistant role) or user message
   const isAI = role === "assistant";
@@ -87,7 +87,7 @@ export const ChatMessage = ({ parts, role, userName }: ChatMessageProps) => {
           {parts?.length > 0 ? (
             parts.map((part, index) => {
               // Debug each part
-              console.log(`Part ${index}:`, part);
+              // console.log(`Part ${index}:`, part);
 
               // Render different UI based on the part type
               // Hover over 'part' to see all possible types!
