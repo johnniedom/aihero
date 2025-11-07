@@ -3,15 +3,8 @@ import Link from "next/link";
 import { auth } from "~/server/auth/index.ts";
 import { ChatPage } from "./chat.tsx";
 import { AuthButton } from "../components/auth-button.tsx";
-
-const chats = [
-  {
-    id: "1",
-    title: "My First Chat",
-  },
-];
-
-const activeChatId = "1";
+import { getChats, getChat } from "~/server/db/queries.ts";
+import type { UIMessage } from "ai";
 
 export default async function HomePage(searchParams: {
   searchParams: Promise<{ id?: string }>;
@@ -20,6 +13,30 @@ export default async function HomePage(searchParams: {
   const userName = session?.user?.name ?? "Guest";
   const isAuthenticated = !!session?.user;
   const { id: chatId } = await searchParams.searchParams;
+
+  const chats =
+    isAuthenticated && session.user.id
+      ? await getChats({
+          userId: session.user.id,
+        })
+      : [];
+
+  const activeChat =
+    chatId && isAuthenticated && session.user.id
+      ? await getChat({
+          userId: session.user.id,
+          chatId: chatId,
+        })
+      : null;
+
+  const initialMessages =
+    activeChat?.messages.map((msg) => {
+      return {
+        id: msg.id,
+        parts: msg.parts as UIMessage["parts"],
+        role: msg.role as "user" | "assistant" | "system",
+      } as UIMessage;
+    }) ?? [];
 
   return (
     <div className="flex h-screen bg-gray-950">
@@ -46,9 +63,9 @@ export default async function HomePage(searchParams: {
             chats.map((chat) => (
               <div key={chat.id} className="flex items-center gap-2">
                 <Link
-                  href={`/?chatId=${chat.id}`}
+                  href={`/?id=${chat.id}`}
                   className={`flex-1 rounded-lg p-3 text-left text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                    chat.id === activeChatId
+                    chat.id === chatId
                       ? "bg-gray-700"
                       : "hover:bg-gray-750 bg-gray-800"
                   }`}
@@ -74,7 +91,12 @@ export default async function HomePage(searchParams: {
         </div>
       </div>
 
-      <ChatPage userName={userName} isAuthenticated={isAuthenticated} chatId={chatId} />
+      <ChatPage
+        userName={userName}
+        isAuthenticated={isAuthenticated}
+        chatId={chatId}
+        initialMessages={initialMessages}
+      />
     </div>
   );
 }

@@ -35,6 +35,7 @@ type parts = UIMessage["parts"][number];
 
 type PartWithText = { text?: unknown };
 
+// Helper: extract text from a single part of a message
 const extractText = (part: parts): string => {
   if (typeof part === "string") {
     return part;
@@ -42,12 +43,15 @@ const extractText = (part: parts): string => {
 
   if (typeof part === "object" && part !== null && "text" in part) {
     const textValue = (part as PartWithText).text; //telling typescript trust me that the part has text property
+   
     if (typeof textValue === "string") {
       return textValue;
     }
   }
   return "";
 };
+
+
 
 // Helper: get a plain text string from a UIMessage (handles both parts and legacy content)
 const getMessageText = (message: UIMessage | undefined): string => {
@@ -61,7 +65,8 @@ const getMessageText = (message: UIMessage | undefined): string => {
   if (partsText.length > 0) {
     return partsText;
   }
-
+  
+  // The legacy content handling | it is used for backward compatibility
   const legacyContent = (message as { content?: LegacyContent }).content;
 
   if (typeof legacyContent === "string") {
@@ -85,6 +90,7 @@ const getMessageText = (message: UIMessage | undefined): string => {
   return "";
 };
 
+
 const deriveChatTitle = (chatMessages: UIMessage[]): string => {
   const lastUserMessage =
     [...chatMessages].reverse().find((message) => message.role === "user") ??
@@ -98,6 +104,11 @@ const deriveChatTitle = (chatMessages: UIMessage[]): string => {
 
   return text.length > 40 ? `${text.slice(0, 40)}...` : text;
 };
+
+
+
+
+
 
 export async function POST(request: Request) {
   // Handle incoming chat messages, create new chats if needed, and stream AI responses

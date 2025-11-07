@@ -14,9 +14,15 @@ interface ChatProps {
   userName: string;
   isAuthenticated: boolean;
   chatId: string | undefined;
+  initialMessages: UIMessage[];
 }
 
-export const ChatPage = ({ userName, isAuthenticated, chatId }: ChatProps) => {
+export const ChatPage = ({
+  userName,
+  isAuthenticated,
+  chatId,
+  initialMessages,
+}: ChatProps) => {
   const [input, setInput] = useState("");
   const [showSignInModal, setShowSignInModal] = useState<boolean>(false);
   const router = useRouter();
@@ -43,7 +49,8 @@ export const ChatPage = ({ userName, isAuthenticated, chatId }: ChatProps) => {
   // Track pending chat ID to avoid duplicate navigations
   const pendingChatIdRef = useRef<string | null>(chatId ?? null);
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat({
+    id: chatId ?? undefined,
     transport,
     // Listen for NEW_CHAT_CREATED data part emitted by server for new conversations
     onData: (dataPart) => {
@@ -65,6 +72,12 @@ export const ChatPage = ({ userName, isAuthenticated, chatId }: ChatProps) => {
       }
     },
   });
+
+  // Load initial messages when chat changes or component mounts
+  useEffect(() => {
+    // Replace messages with the ones loaded for the active chat
+    setMessages(initialMessages);
+  }, [chatId, initialMessages, setMessages]);
 
   useEffect(() => {
     pendingChatIdRef.current = chatId ?? null;
